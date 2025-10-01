@@ -26,15 +26,24 @@ jobs:
         run: |
           ISSUE_BODY="${{ github.event.issue.body }}"
 
-          # Extract query (between ### SPARQL Query and next ###)
+          # Extract query block (between ### SPARQL Query and next ###)
           QUERY=$(echo "$ISSUE_BODY" | sed -n '/^### SPARQL Query/,/^###/p' | sed '1d;$d')
+
+          # Remove triple backticks (``` and ```shell)
+          QUERY=$(echo "$QUERY" | sed '/^```/d')
+
+          # Extract endpoint
           ENDPOINT=$(echo "$ISSUE_BODY" | sed -n '/^### SPARQL Endpoint/,/^###/p' | sed '1d;$d' | xargs)
 
-          echo "sparql_query<<EOF" >> $GITHUB_ENV
-          echo "$QUERY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Write to GitHub env (multiline-safe)
+          {
+            echo "sparql_query<<EOF"
+            echo "$QUERY"
+            echo "EOF"
+          } >> $GITHUB_ENV
 
           echo "sparql_endpoint=$ENDPOINT" >> $GITHUB_ENV
+
 
       - name: Run sparql_runner.py and capture report path
         run: |
