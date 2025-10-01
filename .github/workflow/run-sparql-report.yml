@@ -1,0 +1,77 @@
+name: Run SPARQL Query Report
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  run-sparql:
+    if: contains(github.event.issue.title, '[SPARQL]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install wikidataintegrator pandas rdflib
+
+      - name: Parse issue and extract SPARQL and endpoint
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+
+          # Extract query (between ### SPARQL Query and next ###)
+          QUERY=$(echo "$ISSUE_BODY" | sed -n '/^### SPARQL Query/,/^###/p' | sed '1d;$d')
+          ENDPOINT=$(echo "$ISSUE_BODY" | sed -n '/^### SPARQL Endpoint/,/^###/p' | sed '1d;$d' | xargs)
+
+          echo "sparql_query<<EOF" >> $GITHUB_ENV
+          echo "$QUERY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "sparql_endpoint=$ENDPOINT" >> $GITHUB_ENV
+
+      - name: Run sparql_runner.py and capture report path
+        run: |
+          ISSUE_FOLDER="reports/issue-${{ github.event.issue.number }}"
+          mkdir -p "$ISSUE_FOLDER"
+
+          REPORT_PATH=$(python sparql_runner.py \
+            --query "${{ env.sparql_query }}" \
+            --endpoint "${{ env.sparql_endpoint }}" \
+            --output-folder "$ISSUE_FOLDER")
+
+          echo "REPORT_PATH=$REPORT_PATH" >> $GITHUB_ENV
+
+      - name: Upload generated report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sparql-report
+          path: reports/issue-${{ github.event.issue.number }}/
+
+      - name: Commit report folder to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/issue-${{ github.event.issue.number }}
+          git commit -m "Add SPARQL report for issue #${{ github.event.issue.number }}" || echo "No changes to commit"
+          git push
+
+      - name: Post Markdown report as issue comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f "$REPORT_PATH" ]; then
+            COMMENT_BODY=$(cat "$REPORT_PATH" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments \
+              -d "{\"body\": \"$COMMENT_BODY\"}"
+          else
+            echo "No report file found. Skipping comment."
+          fi

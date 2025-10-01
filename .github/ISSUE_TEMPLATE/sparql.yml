@@ -1,0 +1,39 @@
+name: SPARQL Query
+description: Submit a SPARQL query and endpoint to generate a results report.
+title: "[SPARQL]: "
+labels: ["sparql-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Run a SPARQL Query
+        Submit a SPARQL query and endpoint. The results will be fetched and added as a report.
+
+  - type: textarea
+    id: sparql_query
+    attributes:
+      label: SPARQL Query
+      description: "Paste your SPARQL query here."
+      render: shell
+      placeholder: |
+        SELECT * WHERE { ?s ?p ?o } LIMIT 10
+    validations:
+      required: true
+
+  - type: input
+    id: sparql_endpoint
+    attributes:
+      label: SPARQL Endpoint
+      description: "Enter the SPARQL endpoint URL."
+      placeholder: "https://sparql.uniprot.org/sparql"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_info
+    attributes:
+      label: 📝 Additional Information (optional)
+      description: "Add context or notes for your query."
+      placeholder: "E.g., focus on a specific dataset."
+    validations:
+      required: false
